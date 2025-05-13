@@ -2,7 +2,7 @@
 import streamlit as st
 import pandas as pd
 import pandas_datareader.data as web
-from datetime import datetime
+#from datetime import datetime
 
 st.set_page_config(
     page_title="US Treasury Curve",

@@ -1,7 +1,7 @@
 # pages/VIX_Index.py
 
 import streamlit as st
-import pandas as pd
+#import pandas as pd
 import pandas_datareader.data as web
 
 st.set_page_config(
