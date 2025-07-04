@@ -53,9 +53,9 @@ def fetch_history(symbol: str) -> pd.DataFrame:
     return data
 
 
-off_trend = {}
+results = []
 
-# Evaluate each ticker for off trend movement
+# Evaluate each ticker and store the last two weeks of data
 for symbol in st.session_state.tickers:
     df = fetch_history(symbol)
     if df.empty:
@@ -65,14 +65,15 @@ for symbol in st.session_state.tickers:
     std_ret = df["Return"].std()
     recent = df.loc[df.index >= TWO_WEEKS_AGO]
 
-    if ((recent["Return"] - mean_ret).abs() > 5 * std_ret).any():
-        off_trend[symbol] = recent
+    big_move = ((recent["Return"] - mean_ret).abs() > 5 * std_ret).any()
+    results.append((symbol, recent, big_move))
 
 
-if off_trend:
-    st.header("Tickers Off Trend")
-    for symbol, history in off_trend.items():
-        st.subheader(symbol)
+if results:
+    st.header("Last Two Weeks' Performance")
+    for symbol, history, big_move in results:
+        status = "🚨 Big mover!" if big_move else "Normal range"
+        st.subheader(f"{symbol} - {status}")
         st.line_chart(history["Close"], use_container_width=True)
 else:
-    st.write("No tickers are off trend based on the last two weeks of trading.")
+    st.write("No price data available for the selected tickers.")
