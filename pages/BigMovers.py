@@ -2,11 +2,20 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 from datetime import datetime, timedelta
+import altair as alt
+
 
 st.title("Financial Trend Deviation Monitor")
 
 # Default tickers shown when the app first loads
-DEFAULT_TICKERS = ["AAPL", "MSFT", "GOOGL", "AMZN", "TSLA"]
+DEFAULT_TICKERS = ["BMNR", "GC=F", "CL=F", "NG=F", "CC=F"]
+
+
+
+
+# yahoo finance commodity tickers
+# https://finance.yahoo.com/markets/commodities/
+
 
 # Initialize ticker list in the session state
 if "tickers" not in st.session_state:
@@ -52,7 +61,6 @@ def fetch_history(symbol: str) -> pd.DataFrame:
         data["Return"] = data["Close"].pct_change()
     return data
 
-
 results = []
 
 # Evaluate each ticker and store the last two weeks of data
@@ -61,19 +69,60 @@ for symbol in st.session_state.tickers:
     if df.empty:
         continue
 
-    mean_ret = df["Return"].mean()
-    std_ret = df["Return"].std()
+    # Split data: exclude last two weeks for full period stats
+    mask_full = df.index < TWO_WEEKS_AGO
+    full_period = df.loc[mask_full]
     recent = df.loc[df.index >= TWO_WEEKS_AGO]
 
-    big_move = ((recent["Return"] - mean_ret).abs() > 5 * std_ret).any()
+    # Calculate mean and std for full period (excluding last two weeks)
+    mean_ret_full = full_period["Return"].mean()
+    std_ret_full = full_period["Return"].std()
+
+    # Calculate mean return for last two weeks
+    mean_ret_recent = recent["Return"].mean()
+
+    # Define big move: abs(mean_recent - mean_full) > 5 * std_full
+    big_move = abs(mean_ret_recent - mean_ret_full) > 5 * std_ret_full
     results.append((symbol, recent, big_move))
+
+   # st.subheader(f"{symbol}:")
+   # st.write(f"Full period mean return (excluding last 2 weeks): {mean_ret_full:.5f}")
+   # st.write(f"Full period std dev (excluding last 2 weeks): {std_ret_full:.5f}")
+   # st.write(f"Recent (2 weeks) mean return: {mean_ret_recent:.5f}")
+   # st.write(f"Big move? {'🚨 Yes' if big_move else 'No'}")
 
 
 if results:
-    st.header("Last Two Weeks' Performance")
     for symbol, history, big_move in results:
         status = "🚨 Big mover!" if big_move else "Normal range"
         st.subheader(f"{symbol} - {status}")
-        st.line_chart(history["Close"], use_container_width=True)
+
+        # Prepare data for Altair
+        chart_data = history.reset_index()[["Date", "Close"]]
+        chart_data = chart_data.rename(columns={"Date": "Date", "Close": "Close"})
+
+        # Create an Altair line chart with tooltips and color
+        line = alt.Chart(chart_data).mark_line(
+            color="#1f77b4" if not big_move else "#d62728",
+            strokeWidth=3
+        ).encode(
+            x=alt.X("Date:T", title="Date"),
+            y=alt.Y("Close:Q", title="Close Price"),
+            tooltip=[alt.Tooltip("Date:T", title="Date"), alt.Tooltip("Close:Q", title="Close Price")]
+        )
+
+        points = alt.Chart(chart_data).mark_circle(size=60, color="#ff7f0e").encode(
+            x="Date:T",
+            y="Close:Q",
+            tooltip=[alt.Tooltip("Date:T", title="Date"), alt.Tooltip("Close:Q", title="Close Price")]
+        )
+
+        chart = (line + points).interactive().properties(
+            width=700,
+            height=350,
+            title=f"{symbol} Closing Prices (Last 2 Weeks)"
+        )
+
+        st.altair_chart(chart, use_container_width=True)
 else:
     st.write("No price data available for the selected tickers.")
